@@ -1,5 +1,8 @@
 jira_url: https://jira.local
-jql_query: project = 'MYPROJECT'
+
+#if project ids are left empty we will get all jira projects
+jira_project_keys:
+  - MYPROJECT
 
 jira_issue_template: >
   <b>Issue:</b> [issue.key]<br />
