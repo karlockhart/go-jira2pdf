@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	jira "github.com/andygrunwald/go-jira"
 	"github.com/karlockhart/go-jira2pdf/pkg/config"
@@ -39,11 +40,20 @@ func RunJira2PDF(configFile string) {
 	for i, projectKey := range jiraProjectKeys {
 		jqlQuery := fmt.Sprintf("project = '%s'", projectKey)
 
-		fmt.Printf("%d/%d Getting issues for %s.pdf\n", i+1, projectCount, projectKey)
+		issueCount, err := getIssueCountForQuery(jqlQuery, jiraClient)
+		if err != nil {
+			log.Fatalf("Issue count query failed: %v", err)
+		}
+
+		fmt.Printf("%d/%d Getting %d issues for %s\n", i+1, projectCount, issueCount, projectKey)
 		issues, _, err := jiraClient.Issue.Search(
 			jqlQuery,
-			&jira.SearchOptions{MaxResults: -1},
+			&jira.SearchOptions{
+				MaxResults: -1,
+				Fields:     getFilteredFields(),
+			},
 		)
+
 		if err != nil {
 			log.Fatalf("Issue query failed: %v", err)
 		}
@@ -70,6 +80,31 @@ func getAlljiraProjectKeys(jiraClient *jira.Client) ([]string, error) {
 	}
 
 	return projects, nil
+}
+
+func getIssueCountForQuery(jqlQuery string, jiraClient *jira.Client) (int, error) {
+	issues, _, err := jiraClient.Issue.Search(
+		jqlQuery,
+		&jira.SearchOptions{
+			MaxResults: -1,
+			Fields:     []string{"*none"},
+		},
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	return len(issues), nil
+}
+
+func getFilteredFields() []string {
+	issueFilter := []string{}
+	issueFields := viper.GetStringSlice("jira_issue_fields")
+	for _, issueField := range issueFields {
+		issueFilter = append(issueFilter, strings.ToLower(issueField))
+	}
+
+	return issueFilter
 }
 
 func buildJiraClient() (*jira.Client, error) {

@@ -4,10 +4,12 @@ jira_url: https://jira.local
 jira_project_keys:
   - MYPROJECT
 
-jira_issue_template: >
-  <b>Issue:</b> [issue.key]<br />
-  <b>Summary:</b> [issue.fields.summary]<br />
-  <b>Assignee:</b> [issue.fields.assignee.name]<br />
-  <b>Status:</b> [issue.fields.status.name]<br />
-  <b>Created:</b> [issue.fields.created]<br />
-  <b>Description:</b> [issue.fields.description]
+jira_issue_fields:
+  - Key
+  - Id
+  - Summary
+  - Assignee
+  - Status
+  - Created
+  - Description
+  - Comment
