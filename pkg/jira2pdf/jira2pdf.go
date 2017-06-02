@@ -40,29 +40,19 @@ func RunJira2PDF(configFile string) {
 	for i, projectKey := range jiraProjectKeys {
 		jqlQuery := fmt.Sprintf("project = '%s'", projectKey)
 
-		issueCount, err := getIssueCountForQuery(jqlQuery, jiraClient)
-		if err != nil {
-			log.Fatalf("Issue count query failed: %v", err)
-		}
+		fmt.Println("Fetching issues for " + projectKey)
 
-		fmt.Printf("%d/%d Getting %d issues for %s\n", i+1, projectCount, issueCount, projectKey)
-		issues, _, err := jiraClient.Issue.Search(
-			jqlQuery,
-			&jira.SearchOptions{
-				MaxResults: -1,
-				Fields:     getFilteredFields(),
-			},
-		)
-
+		issues, err := getIssuesForQuery(jqlQuery, jiraClient)
 		if err != nil {
 			log.Fatalf("Issue query failed: %v", err)
 		}
 
 		fmt.Printf("%d/%d Building %s.pdf...\n", i+1, projectCount, projectKey)
-		err = pdf.Build(projectKey, issues)
+		err = pdf.BuildPartitionedPDFs(projectKey, issues)
 		if err != nil {
 			log.Fatalf("Build PDF failed: %v", err)
 		}
+
 		fmt.Printf("%d/%d %s.pdf complete\n", i+1, projectCount, projectKey)
 	}
 
@@ -82,19 +72,31 @@ func getAlljiraProjectKeys(jiraClient *jira.Client) ([]string, error) {
 	return projects, nil
 }
 
-func getIssueCountForQuery(jqlQuery string, jiraClient *jira.Client) (int, error) {
-	issues, _, err := jiraClient.Issue.Search(
-		jqlQuery,
-		&jira.SearchOptions{
-			MaxResults: -1,
-			Fields:     []string{"*none"},
-		},
-	)
-	if err != nil {
-		return 0, err
+func getIssuesForQuery(jqlQuery string, jiraClient *jira.Client) ([]jira.Issue, error) {
+	var issues []jira.Issue
+	pageSize := viper.GetInt("query_page_size")
+
+	for i := 0; ; i += pageSize {
+		pagedIssues, _, err := jiraClient.Issue.Search(
+			jqlQuery,
+			&jira.SearchOptions{
+				MaxResults: pageSize,
+				StartAt:    i,
+				Fields:     getFilteredFields(),
+			},
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		issues = append(issues, pagedIssues...)
+		if len(pagedIssues) < pageSize {
+			break
+		}
 	}
 
-	return len(issues), nil
+	fmt.Printf("Fetched %d issues\n", len(issues))
+	return issues, nil
 }
 
 func getFilteredFields() []string {
