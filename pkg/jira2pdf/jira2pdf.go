@@ -47,13 +47,12 @@ func RunJira2PDF(configFile string) {
 			log.Fatalf("Issue query failed: %v", err)
 		}
 
-		fmt.Printf("%d/%d Building %s.pdf...\n", i+1, projectCount, projectKey)
 		err = pdf.BuildPartitionedPDFs(projectKey, issues)
 		if err != nil {
 			log.Fatalf("Build PDF failed: %v", err)
 		}
 
-		fmt.Printf("%d/%d %s.pdf complete\n", i+1, projectCount, projectKey)
+		fmt.Printf("%d/%d %s complete\n", i+1, projectCount, projectKey)
 	}
 
 }

@@ -14,8 +14,9 @@ func Load(configFile string) error {
 	viper.BindEnv("J2P_PASSWORD")
 	viper.SetDefault("datetime_format", "2006-01-02 15:04:05")
 	viper.SetDefault("api_datetime_format", "2006-01-02T15:04:05.999999999-0700")
-	viper.SetDefault("query_page_size", 4000)
+	viper.SetDefault("query_page_size", 2000)
 	viper.SetDefault("issues_per_pdf", 2000)
+	viper.SetDefault("max_field_character_count", 20000)
 
 	if len(viper.GetString("J2P_USERNAME")) == 0 {
 		return errors.New("environment variable J2P_USERNAME not set")

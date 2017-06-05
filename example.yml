@@ -13,3 +13,10 @@ jira_issue_fields:
   - Created
   - Description
   - Comment
+
+#defaults
+query_page_size: 2000
+issues_per_pdf: 2000
+max_field_character_count: 20000
+datetime_format: 2006-01-02 15:04:05
+api_datetime_format: 2006-01-02T15:04:05.999999999-0700

@@ -1,17 +1,18 @@
 package pdf
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"log"
 	"time"
 
-	"golang.org/x/text/encoding/charmap"
-
 	jira "github.com/andygrunwald/go-jira"
 	"github.com/jung-kurt/gofpdf"
 	"github.com/spf13/viper"
+)
+
+const (
+	lineHt float64 = 9
 )
 
 //BuildPartitionedPDFs builds one or more pdfs for a project
@@ -47,55 +48,52 @@ func getParitionMap(collectionSize int, partitionSize int) [][]int {
 
 //Build a pdf from jira issues
 func Build(fileName string, title string, issues []jira.Issue) error {
-	pdfGenerator := gofpdf.New("P", "mm", "A4", "")
-	pdfTR := pdfGenerator.UnicodeTranslatorFromDescriptor("")
+	fmt.Printf("Building %s.pdf issues:%d\n", fileName, len(issues))
 
-	pdfGenerator.AddPage()
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdfTR := pdf.UnicodeTranslatorFromDescriptor("")
+
+	pdf.AddPage()
 
 	// document title
-	pdfGenerator.SetFont("Arial", "B", 16)
-	pdfGenerator.SetFillColor(222, 222, 222)
-	pdfGenerator.SetTextColor(0, 0, 0)
-	pdfGenerator.MultiCell(0, 16, pdfTR(title+" Issues"), "1", "C", true)
+	pdf.SetFont("Arial", "B", 16)
+	pdf.SetFillColor(222, 222, 222)
+	pdf.SetTextColor(0, 0, 0)
+	pdf.MultiCell(0, 16, pdfTR(title+" Issues"), "1", "C", true)
 
 	// document subtitle
-	currentPosY := pdfGenerator.GetY()
-	pdfGenerator.SetFont("Arial", "", 9)
-	pdfGenerator.SetTextColor(0, 0, 0)
-	pdfGenerator.MultiCell(0, 9, fmt.Sprintf("Total of issues: %v", len(issues)), "1", "L", false)
-	pdfGenerator.SetY(currentPosY)
-	pdfGenerator.MultiCell(0, 9, fmt.Sprintf("Created at: %v", time.Now().Format(viper.GetString("datetime_format"))), "1", "R", false)
-	pdfGenerator.Ln(4)
+	currentPosY := pdf.GetY()
+	pdf.SetFont("Arial", "", 9)
+	pdf.SetTextColor(0, 0, 0)
+	pdf.MultiCell(0, 9, fmt.Sprintf("Total of issues: %v", len(issues)), "1", "L", false)
+	pdf.SetY(currentPosY)
+	pdf.MultiCell(0, 9, fmt.Sprintf("Created at: %v", time.Now().Format(viper.GetString("datetime_format"))), "1", "R", false)
+	pdf.Ln(4)
 
 	//issues
 	for _, issue := range issues {
 		// set issue font
-		var lineHt float64 = 9
-		pdfGenerator.SetFont("Arial", "", lineHt)
-		pdfGenerator.SetTextColor(0, 0, 0)
+		pdf.SetFont("Arial", "", lineHt)
+		pdf.SetTextColor(0, 0, 0)
 
 		// parse issue template
-		issueText := renderIssueToHTML(issue)
-		issueText, _ = charmap.Windows1252.NewEncoder().String(issueText)
-
-		html := pdfGenerator.HTMLBasicNew()
-		html.Write(lineHt, issueText)
+		renderIssueToHTML(issue, pdf)
 
 		// draw issue separator
-		pdfGenerator.SetDrawColor(195, 195, 195)
-		pdfGenerator.Ln(lineHt)
-		pdfGenerator.Ln(2)
+		pdf.SetDrawColor(195, 195, 195)
+		pdf.Ln(lineHt)
+		pdf.Ln(2)
 
-		pageWidth, _ := pdfGenerator.GetPageSize()
-		x, y := pdfGenerator.GetXY()
-		marginL, marginR, _, _ := pdfGenerator.GetMargins()
-		pdfGenerator.Line(x, y, x+pageWidth-marginR-marginL, y)
+		pageWidth, _ := pdf.GetPageSize()
+		x, y := pdf.GetXY()
+		marginL, marginR, _, _ := pdf.GetMargins()
+		pdf.Line(x, y, x+pageWidth-marginR-marginL, y)
 
-		pdfGenerator.Ln(2)
+		pdf.Ln(2)
 	}
 
 	// save to output filename
-	err := pdfGenerator.OutputFileAndClose(fileName + ".pdf")
+	err := pdf.OutputFileAndClose(fileName + ".pdf")
 
 	if err != nil {
 		errString := fmt.Sprintf("Erro while saving %s.pdf: %v", fileName, err)
@@ -105,61 +103,85 @@ func Build(fileName string, title string, issues []jira.Issue) error {
 	return nil
 }
 
-type fieldFunc func(jira.Issue) string
+type fieldFunc func(jira.Issue)
 
-func renderIssueToHTML(issue jira.Issue) string {
+func renderIssueToHTML(issue jira.Issue, pdf *gofpdf.Fpdf) {
+	maxChars := viper.GetInt("max_field_character_count")
 
 	fieldMap := map[string]fieldFunc{
-		"Key":     func(issue jira.Issue) string { return issue.Key },
-		"Id":      func(issue jira.Issue) string { return issue.ID },
-		"Summary": func(issue jira.Issue) string { return issue.Fields.Summary },
-		"Assignee": func(issue jira.Issue) string {
+		"Key": func(issue jira.Issue) {
+			pdf.Write(lineHt, "Key: ")
+			pdf.Write(lineHt, issue.Key)
+		},
+		"Id": func(issue jira.Issue) {
+			pdf.Write(lineHt, "Id: ")
+			pdf.Write(lineHt, issue.ID)
+		},
+		"Summary": func(issue jira.Issue) {
+			pdf.Write(lineHt, "Summary: ")
+			pdf.Write(lineHt, issue.Fields.Summary)
+		},
+		"Assignee": func(issue jira.Issue) {
 			if issue.Fields.Assignee != nil {
-				return issue.Fields.Assignee.Name
+				pdf.Write(lineHt, "Assignee: ")
+				pdf.Write(lineHt, issue.Fields.Assignee.Name)
 			}
-			return ""
 		},
-		"Status": func(issue jira.Issue) string {
+		"Status": func(issue jira.Issue) {
 			if issue.Fields.Status != nil {
-				return issue.Fields.Status.Name
+				pdf.Write(lineHt, "Status: ")
+				pdf.Write(lineHt, issue.Fields.Status.Name)
 			}
-			return ""
 		},
-		"Description": func(issue jira.Issue) string { return issue.Fields.Description },
-		"Created": func(issue jira.Issue) string {
+		"Description": func(issue jira.Issue) {
+			pdf.Write(lineHt, "Description: ")
+
+			if len(issue.Fields.Description) > maxChars {
+				issue.Fields.Description = issue.Fields.Description[:maxChars]
+			}
+			pdf.Write(lineHt, issue.Fields.Description)
+		},
+		"Created": func(issue jira.Issue) {
+			pdf.Write(lineHt, "Created: ")
 			dateTime, err := time.Parse(viper.GetString("api_datetime_format"), issue.Fields.Created)
 			if err != nil {
 				log.Printf("Error on parse field \"created\"! %v\n", err)
-				return ""
+				return
 			}
-			return dateTime.Format(viper.GetString("datetime_format"))
+
+			pdf.Write(lineHt, dateTime.Format(viper.GetString("datetime_format")))
 		},
-		"Comment": func(issue jira.Issue) string {
+		"Comment": func(issue jira.Issue) {
+			pdf.Write(lineHt, "Comments: ")
+
 			if issue.Fields.Comments == nil {
-				return ""
+				return
 			}
-			var commentBuffer bytes.Buffer
+
 			comments := issue.Fields.Comments.Comments
 			if len(comments) > 0 {
-				commentBuffer.WriteString("<br />")
+				pdf.Ln(lineHt)
 			}
+
 			for _, comment := range comments {
-				c := fmt.Sprintf("<u>%s</u> - %s<br />", comment.Author.Name, comment.Body)
-				commentBuffer.WriteString(c)
+				if len(comment.Body) > maxChars {
+					comment.Body = comment.Body[:maxChars]
+				}
+				pdf.Write(lineHt, comment.Author.Name)
+				pdf.Write(lineHt, " - ")
+				pdf.Write(lineHt, comment.Body)
+				pdf.Ln(lineHt)
 			}
-			return commentBuffer.String()
 		},
 	}
 
-	var issueText bytes.Buffer
 	issueFields := viper.GetStringSlice("jira_issue_fields")
 
 	for _, issueField := range issueFields {
 		valueFunc, ok := fieldMap[issueField]
 		if ok {
-			issueText.WriteString(fmt.Sprintf("<b>%s:</b> %s<br />", issueField, valueFunc(issue)))
+			valueFunc(issue)
+			pdf.Ln(lineHt)
 		}
 	}
-
-	return issueText.String()
 }
