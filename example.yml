@@ -12,6 +12,7 @@ jira_issue_fields:
   - Status
   - Created
   - Description
+  - Attachment
   - Comment
 
 #defaults

@@ -151,6 +151,28 @@ func renderIssueToHTML(issue jira.Issue, pdf *gofpdf.Fpdf) {
 
 			pdf.Write(lineHt, dateTime.Format(viper.GetString("datetime_format")))
 		},
+		"Attachment": func(issue jira.Issue) {
+			pdf.Write(lineHt, "Attachments: ")
+
+			if issue.Fields.Attachments == nil {
+				return
+			}
+
+			attachments := issue.Fields.Attachments
+			if len(attachments) > 0 {
+				pdf.Ln(lineHt)
+			}
+
+			for _, attachment := range attachments {
+				if attachment.Author != nil {
+					pdf.Write(lineHt, attachment.Author.Name)
+				}
+
+				pdf.Write(lineHt, " - ")
+				pdf.Write(lineHt, attachment.Content)
+				pdf.Ln(lineHt)
+			}
+		},
 		"Comment": func(issue jira.Issue) {
 			pdf.Write(lineHt, "Comments: ")
 
